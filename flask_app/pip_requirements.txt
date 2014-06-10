@@ -3,6 +3,7 @@ Flask-Mail
 Flask-Script
 Flask-Migrate
 Flask-SQLAlchemy
+redis
 gevent
 Logbook>=0.6.0
 PyYAML
