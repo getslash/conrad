@@ -1,6 +1,7 @@
 import time
 
 import pytest
+from flask_app.models import Record
 from flask_app.views import get_redis_connection
 
 
@@ -20,8 +21,6 @@ def test_get_all(webapp, path, data):
     assert get_all() == {path.object_str: {path.key_str: data}}
     webapp.put(str(path), data=data * 2)
     assert get_all() == {path.object_str: {path.key_str: data*2}}
-
-
 
 @pytest.fixture
 def path():
@@ -76,6 +75,24 @@ def data():
 
 
 @pytest.mark.parametrize("with_empty_redis", [True, False])
-def test_incarnation_change(webapp, with_empty_redis):
+def test_incarnation_change(webapp, path, data, with_empty_redis):
+    num_keys = 10
+    for i in range(num_keys):
+        if i % 3 == 0:
+            path.object += 1
+        path.key += 1
+        webapp.put(str(path), data=data)
+        data = "{0}__{1}".format(data, i)
+
+    assert Record.query.filter(Record.entity == path.entity_str).count() == num_keys
+
     if with_empty_redis:
-        get_redis_connection().delete("*")
+        for key in get_redis_connection().keys("*"):
+            get_redis_connection().delete(key)
+
+
+    path.incarnation += 1
+    webapp.put(str(path), data=data)
+    record = Record.query.filter(Record.entity == path.entity_str).one()
+    assert record.incarnation == path.incarnation_str
+
