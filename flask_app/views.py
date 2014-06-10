@@ -1,13 +1,13 @@
+import collections
 import datetime
 
 from flask import jsonify, make_response, render_template, request
 
+from redis import Redis
 from sqlalchemy import desc
 
 from .app import app
 from .models import db, Record
-
-from redis import Redis
 
 _redis_connection = None
 
@@ -28,6 +28,7 @@ def get_or_put_attribute(entity, incarnation, object, key):
     if request.method.lower() == "get":
         return get_attribute(entity, incarnation, object, key)
     return put_attribute(entity, incarnation, object, key)
+
 
 
 def get_attribute(entity, incarnation, object, key):
@@ -66,3 +67,11 @@ def put_attribute(entity, incarnation, object, key):
     db.session.commit()
     _cache_result(entity, incarnation, object, key, data)
     return jsonify({"result": True})
+
+@app.route("/api/v1/entities/<entity>/<incarnation>")
+def get_all_incarnation_tags(entity, incarnation):
+    records = Record.query.filter(Record.entity == entity, Record.incarnation == incarnation).order_by(Record.timestamp)
+    returned = collections.defaultdict(dict)
+    for record in records:
+        returned[record.object][record.key] = record.value
+    return jsonify({"result": returned})
