@@ -1,2 +1,4 @@
 - name: reload nginx config
   shell: nginx -s reload
+- name: restart redis
+  service: name=redis-server state=restarted

@@ -1,2 +1,6 @@
 - apt: pkg=redis-server state=latest
 - service: name=redis-server state=started
+- lineinfile: dest=/etc/redis/redis.conf regexp=^maxmemory line="maxmemory 100mb"
+  notify: restart redis
+- lineinfile: dest=/etc/redis/redis.conf regexp=^maxmemory-policy line="maxmemory-policy volatile-lru"
+  notify: restart redis
