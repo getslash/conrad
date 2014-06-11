@@ -1,3 +1,5 @@
+import copy
+
 import requests
 
 import pytest
@@ -42,6 +44,9 @@ class Path(object):
         self.object = object
         self.key = key
 
+    def clone(self):
+        return copy.copy(self)
+
     @property
     def entity_str(self):
         return "entity{0}".format(self.entity)
@@ -80,10 +85,12 @@ def data():
 @pytest.mark.parametrize("with_empty_redis", [True, False])
 def test_incarnation_change(webapp, path, data, with_empty_redis):
     num_keys = 10
+    paths = []
     for i in range(num_keys):
         if i % 3 == 0:
             path.object += 1
         path.key += 1
+        paths.append(path.clone())
         webapp.put(path, data=data)
         data = "{0}__{1}".format(data, i)
 
@@ -99,3 +106,5 @@ def test_incarnation_change(webapp, path, data, with_empty_redis):
     record = Record.query.filter(Record.entity == path.entity_str).one()
     assert record.incarnation == path.incarnation_str
 
+    for prev_path in paths:
+        assert webapp.get_raw(prev_path).status_code == requests.codes.not_found
