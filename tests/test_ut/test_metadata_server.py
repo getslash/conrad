@@ -1,4 +1,4 @@
-import time
+import requests
 
 import pytest
 from flask_app.models import Record
@@ -6,20 +6,23 @@ from flask_app.views import get_redis_connection
 
 
 def test_set(webapp, path, data, saved):
-    assert webapp.get(str(path)) == {"result": data}
+    assert webapp.get(path) == {"result": data}
 
 
 def test_get_raw(webapp, path, data, saved):
     assert webapp.get_raw(path + "?raw=true").content == data
 
 
+def test_no_metadata(webapp, path):
+    assert webapp.get_raw(path).status_code == requests.codes.not_found
+
 def test_get_all(webapp, path, data):
     def get_all():
         return webapp.get(path.incarnation_path)["result"]
     assert get_all() == {}
-    webapp.put(str(path), data=data)
+    webapp.put(path, data=data)
     assert get_all() == {path.object_str: {path.key_str: data}}
-    webapp.put(str(path), data=data * 2)
+    webapp.put(path, data=data * 2)
     assert get_all() == {path.object_str: {path.key_str: data*2}}
 
 @pytest.fixture
@@ -28,7 +31,7 @@ def path():
 
 @pytest.fixture
 def saved(webapp, path, data):
-    webapp.put(str(path), data=data)
+    webapp.put(path, data=data)
 
 class Path(object):
 
@@ -81,7 +84,7 @@ def test_incarnation_change(webapp, path, data, with_empty_redis):
         if i % 3 == 0:
             path.object += 1
         path.key += 1
-        webapp.put(str(path), data=data)
+        webapp.put(path, data=data)
         data = "{0}__{1}".format(data, i)
 
     assert Record.query.filter(Record.entity == path.entity_str).count() == num_keys
@@ -92,7 +95,7 @@ def test_incarnation_change(webapp, path, data, with_empty_redis):
 
 
     path.incarnation += 1
-    webapp.put(str(path), data=data)
+    webapp.put(path, data=data)
     record = Record.query.filter(Record.entity == path.entity_str).one()
     assert record.incarnation == path.incarnation_str
 

@@ -11,6 +11,7 @@ from urlobject import URLObject as URL
 
 import pytest
 from flask_app import app, models
+from flask_app.views import get_redis_connection
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -38,6 +39,10 @@ def db_engine(request):
 
     subprocess.check_call("createdb metadata_server", shell=True)
 
+@pytest.fixture(autouse=True, scope="function")
+def clean_redis():
+    for key in get_redis_connection().keys("*"):
+        get_redis_connection().delete(key)
 
 @pytest.fixture
 def webapp(request, db):
@@ -70,6 +75,8 @@ class Webapp(object):
         self.loopback.deactivate_address((self.hostname, 80))
 
     def _request(self, method, path, *args, **kwargs):
+        if not isinstance(path, str):
+            path = str(path)
         raw_response = kwargs.pop("raw_response", False)
         if path.startswith("/"):
             path = path[1:]

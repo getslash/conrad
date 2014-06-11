@@ -2,7 +2,7 @@ import collections
 import datetime
 import logbook
 
-from flask import jsonify, make_response, render_template, request
+from flask import jsonify, make_response, render_template, request, abort
 
 from redis import Redis
 from sqlalchemy import desc
@@ -38,6 +38,8 @@ def get_attribute(entity, incarnation, object, key):
         record = Record.query.filter(
             Record.entity == entity, Record.incarnation == incarnation,
             Record.object == object, Record.key == key).order_by(desc(Record.timestamp)).first()
+        if record is None:
+            abort(404)
         returned = record.value
         _cache_result(entity, incarnation, object, key, returned)
 
