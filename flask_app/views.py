@@ -1,8 +1,10 @@
 import collections
 import datetime
-import logbook
+import random
+import time
 
-from flask import jsonify, make_response, render_template, request, abort
+import logbook
+from flask import abort, jsonify, make_response, render_template, request
 
 from redis import Redis
 from sqlalchemy import desc
@@ -47,14 +49,45 @@ def get_attribute(entity, incarnation, object, key):
         return make_response(returned)
     return jsonify({"result": returned})
 
+def _entity_incarnation_key(entity):
+    return "entity-incarnation.{}".format(entity)
+
+def _entity_salt_key(entity):
+    return "entity-salt.{}".format(entity)
+
+def put_attribute(entity, incarnation, object, key):
+    timestamp = datetime.datetime.utcnow()
+    data = request.data or request.stream.read()
+    record = Record(entity=entity, incarnation=incarnation, object=object,
+                    key=key, value=data, timestamp=timestamp)
+    redis = get_redis_connection()
+    prev_incarnation = redis.getset(
+        _entity_incarnation_key(entity), incarnation)
+    if prev_incarnation is None or prev_incarnation != incarnation:
+        _invalidate_entity_cache(entity)
+        logbook.debug(
+            "Incarnation has changed for {} (prev: {}, new: {})", entity, prev_incarnation, incarnation)
+        Record.query.filter(Record.entity == entity,
+                            Record.incarnation != incarnation).delete()
+    redis.expire(_entity_incarnation_key(entity), _ENTITY_INCARNATION_EXPIRY)
+    db.session.add(record)
+    db.session.commit()
+    _cache_result(entity, incarnation, object, key, data)
+    return jsonify({"result": True})
+
 
 def _get_cached_result(entity, incarnation, object, key):
     redis_key = _generate_redis_key(entity, incarnation, object, key)
-    return get_redis_connection().get(redis_key)
+    returned = get_redis_connection().get(redis_key)
+    if returned is not None:
+        # refresh the key's expiry
+        get_redis_connection().expire(redis_key, _CACHE_EXPIRY_TIME)
+    return returned
 
 MINUTE = 60
 HOUR = 60 * MINUTE
 _CACHE_EXPIRY_TIME = 1 * HOUR
+_ENTITY_INCARNATION_EXPIRY = 7 * 24 * HOUR
 
 
 def _cache_result(entity, incarnation, object, key, value):
@@ -62,26 +95,28 @@ def _cache_result(entity, incarnation, object, key, value):
         _generate_redis_key(entity, incarnation, object, key), value, _CACHE_EXPIRY_TIME)
 
 
-def _generate_redis_key(*fragments):
-    return "/" + "/".join(fragment.replace("\\", "\\\\").replace("/", "\\/") for fragment in fragments)
+def _invalidate_entity_cache(entity):
+    get_redis_connection().delete(_entity_salt_key(entity))
 
 
-def put_attribute(entity, incarnation, object, key):
-    timestamp = datetime.datetime.utcnow()
-    data = request.data or request.stream.read()
-    record = Record(entity=entity, incarnation=incarnation, object=object,
-                    key=key, value=data, timestamp=timestamp)
-    prev_incarnation = get_redis_connection().getset(
-        "entity-incarnation.{0}".format(entity), incarnation)
-    if prev_incarnation is None or prev_incarnation != incarnation:
-        logbook.debug(
-            "Incarnation has changed for {} (prev: {}, new: {})", entity, prev_incarnation, incarnation)
-        Record.query.filter(Record.entity == entity,
-                            Record.incarnation != incarnation).delete()
-    db.session.add(record)
-    db.session.commit()
-    _cache_result(entity, incarnation, object, key, data)
-    return jsonify({"result": True})
+def _generate_redis_key(entity, *fragments):
+    parts = ["", get_entity_key_salt(entity), entity]
+    parts.extend(fragments)
+    return "/".join(str(x) for x in parts)
+
+
+def get_entity_key_salt(entity):
+    redis = get_redis_connection()
+    generation = _get_new_entity_key_salt()
+    key = _entity_salt_key(entity)
+    if redis.setnx(key, generation):
+        redis.expire(key, _ENTITY_INCARNATION_EXPIRY)
+        return generation
+    return redis.get(key)
+
+
+def _get_new_entity_key_salt():
+    return (time.time() * 1000) + random.randrange(1000)
 
 
 @app.route("/api/v1/entities/<entity>/<incarnation>")
