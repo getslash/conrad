@@ -57,7 +57,7 @@ def _entity_salt_key(entity):
 
 def put_attribute(entity, incarnation, object, key):
     timestamp = datetime.datetime.utcnow()
-    data = request.data or request.stream.read()
+    data = request.input_stream.read()
     record = Record(entity=entity, incarnation=incarnation, object=object,
                     key=key, value=data, timestamp=timestamp)
     redis = get_redis_connection()
