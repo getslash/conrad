@@ -27,7 +27,7 @@ def get_redis_connection():
 def index():
     return render_template("index.html", version=sys.version)
 
-
+# For example: /api/v1/entities/ibox506/<deployment UUID>/volume:2387/infinio_serialized_data <-- "bla"
 @app.route("/api/v1/entities/<entity>/<incarnation>/<object>/<key>", methods=["get", "put"])
 def get_or_put_attribute(entity, incarnation, object, key):
     if request.method.lower() == "get":
