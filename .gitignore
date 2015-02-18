@@ -38,4 +38,6 @@ src/static/vendor/pines-notify/oxygen
 src/static/vendor/bootstrap/bootstrap.css
 .DS_Store
 .env
+.ansible-env
 .wheels
+persistent

@@ -1,5 +1,4 @@
 import flask
-import itertools
 import logging
 import os
 import sys
@@ -16,7 +15,7 @@ app = flask.Flask(__name__, static_folder=os.path.join(ROOT_DIR, "..", "static")
 app.config["SECRET_KEY"] = ""
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/metadata_server'
 
-_CONF_D_PATH = os.path.join(ROOT_DIR, "..", "conf.d")
+_CONF_D_PATH = os.environ.get('CONFIG_DIRECTORY', os.path.join(ROOT_DIR, "..", "conf.d"))
 
 configs = [os.path.join(ROOT_DIR, "app.yml")]
 

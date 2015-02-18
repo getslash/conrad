@@ -2,6 +2,7 @@ import collections
 import datetime
 import random
 import time
+import sys
 
 import logbook
 from flask import abort, jsonify, make_response, render_template, request
@@ -24,7 +25,7 @@ def get_redis_connection():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", version=sys.version)
 
 
 @app.route("/api/v1/entities/<entity>/<incarnation>/<object>/<key>", methods=["get", "put"])
