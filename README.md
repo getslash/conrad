@@ -38,6 +38,20 @@ To start developing and testing, bootstrap the development environment with:
 $ python manage.py bootstrap --develop
 ```
 
+Running the unit tests is done by running:
+
+```
+$ make test
+```
+
+*NOTE*: in order to run the unit tests you will need a running redis instance on your local machine, and a running postgres server. You can start one by running:
+
+```
+$ pg_ctl -D /path/to/db init
+$ pg_ctl -D /path/to/db start
+$ createdb -E utf8 metadata_server
+```
+
 License
 =======
 
