@@ -1,6 +1,8 @@
 Conrad
 ======
 
+<img src="https://raw.githubusercontent.com/getslash/conrad/master/webapp/public/assets/img/conrad.png">
+
 Conrad is a metadata storage server. It manages tagged data stored about entities, where each entity can be scraped or reinstalled, thus flushing all of its metadata.
 
 
