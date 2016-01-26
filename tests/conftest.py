@@ -1,8 +1,5 @@
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
 import uuid
 
 import requests
@@ -24,40 +21,36 @@ def deployment_webapp_url(request):
     port = request.config.getoption("--www-port")
     return URL("http://127.0.0.1").with_port(port)
 
-@pytest.fixture(autouse=True, scope="session")
-def db_engine(request):
-    if not request.config.getoption("--setup-db"):
-        return
-    tmpdir = tempfile.mkdtemp()
-    subprocess.check_call("pg_ctl init -D {0} -w".format(tmpdir), shell=True)
-    subprocess.check_call("pg_ctl start -D {0} -w".format(tmpdir), shell=True)
-
-    @request.addfinalizer
-    def finalize():
-        subprocess.check_call("pg_ctl stop -D {0} -w -m immediate".format(tmpdir), shell=True)
-        shutil.rmtree(tmpdir)
-
-    subprocess.check_call("createdb metadata_server", shell=True)
 
 @pytest.fixture(autouse=True, scope="function")
 def clean_redis():
-    for key in get_redis_connection().keys("*"):
-        get_redis_connection().delete(key)
+    get_redis_connection().flushall()
+
+@pytest.fixture(autouse=True)
+def app_security_settings(webapp):
+    webapp.app.config["SECRET_KEY"] = "testing_key"
+    webapp.app.config["SECURITY_PASSWORD_SALT"] = webapp.app.extensions['security'].password_salt = "testing_salt"
+
 
 @pytest.fixture
-def webapp(request, db):
-    returned = Webapp(app.app)
+def flask_app():
+    return app.create_app()
+
+
+@pytest.fixture
+def webapp(request, flask_app):
+    returned = Webapp(flask_app)
     returned.app.config["SECRET_KEY"] = "testing_key"
     returned.app.config["TESTING"] = True
     returned.activate()
     request.addfinalizer(returned.deactivate)
     return returned
 
-@pytest.fixture
-def db(request):
-    models.db.session.close()
-    models.db.drop_all()
-    models.db.create_all()
+@pytest.fixture(autouse=True, scope='function')
+def db(request, webapp):
+    with webapp.app.app_context():
+        models.Record.query.delete()
+        models.db.session.commit()
 
 
 class Webapp(object):

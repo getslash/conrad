@@ -12,7 +12,7 @@ def test_set(webapp, path, data, saved):
 
 
 def test_get_raw(webapp, path, data, saved):
-    assert webapp.get_raw(path + "?raw=true").content == data
+    assert webapp.get_raw(path + "?raw=true").text == data
 
 
 def test_no_metadata(webapp, path):
@@ -83,7 +83,7 @@ def data():
 
 
 @pytest.mark.parametrize("with_empty_redis", [True, False])
-def test_incarnation_change(webapp, path, data, with_empty_redis):
+def test_incarnation_change(webapp, path, data, with_empty_redis, flask_app):
     num_keys = 10
     paths = []
     for i in range(num_keys):
@@ -94,17 +94,18 @@ def test_incarnation_change(webapp, path, data, with_empty_redis):
         webapp.put(path, data=data)
         data = "{0}__{1}".format(data, i)
 
-    assert Record.query.filter(Record.entity == path.entity_str).count() == num_keys
+    with flask_app.app_context():
+        assert Record.query.filter(Record.entity == path.entity_str).count() == num_keys
 
-    if with_empty_redis:
-        for key in get_redis_connection().keys("*"):
-            get_redis_connection().delete(key)
+        if with_empty_redis:
+            for key in get_redis_connection().keys("*"):
+                get_redis_connection().delete(key)
 
 
-    path.incarnation += 1
-    webapp.put(path, data=data)
-    record = Record.query.filter(Record.entity == path.entity_str).one()
-    assert record.incarnation == path.incarnation_str
+        path.incarnation += 1
+        webapp.put(path, data=data)
+        record = Record.query.filter(Record.entity == path.entity_str).one()
+        assert record.incarnation == path.incarnation_str
 
     for prev_path in paths:
         assert webapp.get_raw(prev_path).status_code == requests.codes.not_found

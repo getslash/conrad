@@ -1,34 +1,28 @@
 import collections
 import datetime
+import os
 import random
 import time
-import sys
 
 import logbook
-from flask import abort, jsonify, make_response, render_template, request
 
+from flask import (Blueprint, abort, current_app, jsonify, make_response,
+                   request, send_from_directory)
 from redis import Redis
-from sqlalchemy import desc
+from sqlalchemy.sql import desc
 
-from .app import app
-from .models import db, Record
+from .models import Record, db
 
-_redis_connection = None
+views = Blueprint("views", __name__, template_folder="templates")
 
-
-def get_redis_connection():
-    global _redis_connection
-    if _redis_connection is None:
-        _redis_connection = Redis()
-    return _redis_connection
-
-
-@app.route("/")
+@views.route("/")
 def index():
-    return render_template("index.html", version=sys.version)
+    if not os.path.isdir(current_app.static_folder):
+        return send_from_directory(os.path.join(os.path.dirname(__file__), '..', 'webapp', 'app'), 'index.html')
+    return send_from_directory(current_app.static_folder, 'index.html')
 
 # For example: /api/v1/entities/ibox506/<deployment UUID>/volume:2387/infinio_serialized_data <-- "bla"
-@app.route("/api/v1/entities/<entity>/<incarnation>/<object>/<key>", methods=["get", "put"])
+@views.route("/api/v1/entities/<entity>/<incarnation>/<object>/<key>", methods=["get", "put"])
 def get_or_put_attribute(entity, incarnation, object, key):
     if request.method.lower() == "get":
         return get_attribute(entity, incarnation, object, key)
@@ -58,7 +52,7 @@ def _entity_salt_key(entity):
 
 def put_attribute(entity, incarnation, object, key):
     timestamp = datetime.datetime.utcnow()
-    data = request.input_stream.read()
+    data = request.input_stream.read().decode('utf-8')
     record = Record(entity=entity, incarnation=incarnation, object=object,
                     key=key, value=data, timestamp=timestamp)
     redis = get_redis_connection()
@@ -120,7 +114,7 @@ def _get_new_entity_key_salt():
     return (time.time() * 1000) + random.randrange(1000)
 
 
-@app.route("/api/v1/entities/<entity>/<incarnation>")
+@views.route("/api/v1/entities/<entity>/<incarnation>")
 def get_all_incarnation_tags(entity, incarnation):
     records = Record.query.filter(
         Record.entity == entity, Record.incarnation == incarnation).order_by(Record.timestamp)
@@ -128,3 +122,12 @@ def get_all_incarnation_tags(entity, incarnation):
     for record in records:
         returned[record.object][record.key] = record.value
     return jsonify({"result": returned})
+
+
+_redis_connection = None
+
+def get_redis_connection():
+    global _redis_connection # pylint: disable=global-statement
+    if _redis_connection is None:
+        _redis_connection = Redis()
+    return _redis_connection

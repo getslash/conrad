@@ -1,5 +1,5 @@
 [webapp]
-metadata.lab.il.infinidat.com ansible_ssh_user=root
+#my-host001 ansible_ssh_user=root
 
 [db]
-metadata.lab.il.infinidat.com ansible_ssh_user=root
+#my-db-host002 ansible_ssh_user=root
